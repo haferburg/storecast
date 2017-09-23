@@ -178,7 +178,10 @@ i32 read_entire_file(ifstream& In)
   return NumLines;
 }
 
-string CubeFilePath = "../data/cube.obj";
+namespace {
+const string CubeFilePath = "../data/cube.obj";
+const string DuckyFilePath = "../data/ducky.obj";
+}
 bool test_parse_cube_vertices()
 {
   ifstream File(CubeFilePath);
@@ -254,6 +257,20 @@ bool test_parse_cube_faces()
   return true;
 }
 
+bool test_parse_ducky_faces()
+{
+  ifstream File(DuckyFilePath);
+  obj_file_data Data = parse_obj(File);
+  ASSERT_EQ(Data.f.size(), 7064);
+  for(auto& f: Data.f) {
+    ASSERT_EQ(f.HasVt, true);
+    ASSERT_EQ(f.HasVn, false);
+    ASSERT_EQ(f.NumVertices, 4);
+    ASSERT_EQ(f.Index.size(), 2*f.NumVertices);
+  }
+  return true;
+}
+
 bool test_parse_faces_with_only_vertices()
 {
   string Contents =
@@ -321,8 +338,7 @@ bool test_open_cube_file()
 
 bool test_open_ducky_file()
 {
-  string FileName = "../data/ducky.obj";
-  ifstream File(FileName);
+  ifstream File(DuckyFilePath);
   i32 NumLines = read_entire_file(File);
   ASSERT_EQ(NumLines, 23831);
   return true;
@@ -342,7 +358,6 @@ void run_test(std::function<bool()> test, string TestName)
 int main(int argc, char *argv[])
 {
   RUN_TEST(test_open_cube_file);
-  RUN_TEST(test_open_ducky_file);
   RUN_TEST(test_parse_cube_vertices);
   RUN_TEST(test_parse_cube_texture_coords);
   RUN_TEST(test_parse_cube_normals);
@@ -350,4 +365,6 @@ int main(int argc, char *argv[])
   RUN_TEST(test_parse_faces_with_only_vertices);
   RUN_TEST(test_parse_faces_with_vertices_and_tex_coords);
   RUN_TEST(test_parse_faces_with_vertices_and_normals);
+  RUN_TEST(test_open_ducky_file);
+  RUN_TEST(test_parse_ducky_faces);
 }
