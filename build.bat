@@ -67,8 +67,8 @@ cl.exe %COMPILER_FLAGS%^
  /Fm%project%.map /Fe%project%.exe^
  %project_dir%\src\main.cpp^
  /link %LINKER_FLAGS%
-
 popd
+if errorlevel 1 GOTO:EOF
 
 if NOT EXIST bin ( mkdir bin )
 call copy_if_different %build_dir%\%project%.exe bin\%project%.exe
