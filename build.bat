@@ -42,7 +42,7 @@ if "%DEBUG%"=="debug" (
 )
 
 set COMPILER_FLAGS=/nologo^
- /Gm^
+ /Gm /EHsc^
  /D_CRT_NONSTDC_NO_WARNINGS^
  /I "%project_dir%\src"^
  %COMPILER_FLAGS% /Zi /WX /W4 /wd4201 /wd4100 /wd4127 /wd4996 /FC /GR- /GL-
@@ -71,3 +71,6 @@ popd
 
 if NOT EXIST bin ( mkdir bin )
 call copy_if_different %build_dir%\%project%.exe bin\%project%.exe
+
+echo Running tests
+call run.bat
