@@ -288,6 +288,25 @@ bool test_parse_faces_with_vertices_and_tex_coords()
   return true;
 }
 
+bool test_parse_faces_with_vertices_and_normals()
+{
+  string Contents =
+      "f 1//1 2//2 3//4\n"
+      "f 4//1 5//2 6//7\n"
+      "f 7//1 8//2 9//7\n"
+      "f 7//1 8//2 9//7\n";
+  stringstream File(Contents);
+  obj_file_data Data = parse_obj(File);
+  ASSERT_EQ(Data.f.size(), 4);
+  for(auto& f: Data.f) {
+    ASSERT_EQ(f.HasVt, false);
+    ASSERT_EQ(f.HasVn, true);
+    ASSERT_EQ(f.NumVertices, 3);
+    ASSERT_EQ(f.Index.size(), 2*f.NumVertices);
+  }
+  return true;
+}
+
 bool test_open_cube_file()
 {
   ifstream File(CubeFilePath);
@@ -326,4 +345,5 @@ int main(int argc, char *argv[])
   RUN_TEST(test_parse_cube_faces);
   RUN_TEST(test_parse_faces_with_only_vertices);
   RUN_TEST(test_parse_faces_with_vertices_and_tex_coords);
+  RUN_TEST(test_parse_faces_with_vertices_and_normals);
 }
