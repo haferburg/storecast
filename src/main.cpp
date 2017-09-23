@@ -174,7 +174,7 @@ template <> bool equals(f32 Left, f32 Right)
 {
   return static_cast<i32>(Left) == static_cast<i32>(Right);
 }
-#define ASSERT_EQ(Value, Expected) if (!equals(Value, Expected)) { cout << #Value " is not " << Expected << " but " << Value << endl; return false; }
+#define ASSERT_EQ(Value, Expected) {auto V=(Value); if (!equals(V, Expected)) { cout << #Value " is not " << Expected << " but " << V << endl; return false; }}
 
 i32 read_entire_file(ifstream& In)
 {
