@@ -139,6 +139,20 @@ bool test_parse_cube_texture_coords()
   return true;
 }
 
+bool test_parse_cube_normals()
+{
+  ifstream File(CubeFilePath);
+  obj_file_data Data = parse_obj(File);
+  ASSERT_EQ(Data.vn.size(), 6);
+  ASSERT_EQ(Data.vn[0].X, 0.f);
+  ASSERT_EQ(Data.vn[0].Y, 0.f);
+  ASSERT_EQ(Data.vn[0].Z, 1.f);
+  ASSERT_EQ(Data.vn[5].X, -1.f);
+  ASSERT_EQ(Data.vn[5].Y, 0.f);
+  ASSERT_EQ(Data.vn[5].Z, 0.f);
+  return true;
+}
+
 bool test_open_cube_file()
 {
   ifstream File(CubeFilePath);
@@ -173,4 +187,5 @@ int main(int argc, char *argv[])
   RUN_TEST(test_open_ducky_file);
   RUN_TEST(test_parse_cube_vertices);
   RUN_TEST(test_parse_cube_texture_coords);
+  RUN_TEST(test_parse_cube_normals);
 }
