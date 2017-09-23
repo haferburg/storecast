@@ -322,11 +322,53 @@ bool test_convert_cube_to_mesh_positions()
       auto MeshTriangleIndex = 3*TriIndex + I;
       ASSERT_EQ(0<=MeshTriangleIndex && MeshTriangleIndex<Mesh.Triangle.size(), true);
       auto& MeshVertexIndex = Mesh.Triangle[MeshTriangleIndex];
-      auto& MeshVertex = Mesh.Vertex[MeshVertexIndex].Position;
+      auto& MeshVertexPosition = Mesh.Vertex[MeshVertexIndex].Position;
       auto& ObjVertexIndex = Obj.f[TriIndex].Index[3*I+0];
       auto& ObjVertex = Obj.v[ObjVertexIndex-1];
       for3(J) {
-        ASSERT_EQ(MeshVertex.Data[J], ObjVertex.Data[J]);
+        ASSERT_EQ(MeshVertexPosition.Data[J], ObjVertex.Data[J]);
+      }
+    }
+  }
+  return true;
+}
+
+bool test_convert_cube_to_mesh_normals()
+{
+  auto& Obj = CubeObj;
+  mesh Mesh = convert_to_mesh(Obj);
+  ASSERT_EQ(Mesh.Triangle.size(), 3*Obj.f.size());
+  for (i32 TriIndex = 0; TriIndex < Obj.f.size(); ++TriIndex) {
+    for3(I) {
+      auto MeshTriangleIndex = 3*TriIndex + I;
+      ASSERT_EQ(0<=MeshTriangleIndex && MeshTriangleIndex<Mesh.Triangle.size(), true);
+      auto& MeshVertexIndex = Mesh.Triangle[MeshTriangleIndex];
+      auto& MeshNormal = Mesh.Vertex[MeshVertexIndex].Normal;
+      auto& ObjNormalIndex = Obj.f[TriIndex].Index[3*I+2];
+      auto& ObjNormal = Obj.vn[ObjNormalIndex-1];
+      for3(J) {
+        ASSERT_EQ(MeshNormal.Data[J], ObjNormal.Data[J]);
+      }
+    }
+  }
+  return true;
+}
+
+bool test_convert_cube_to_mesh_uvs()
+{
+  auto& Obj = CubeObj;
+  mesh Mesh = convert_to_mesh(Obj);
+  ASSERT_EQ(Mesh.Triangle.size(), 3*Obj.f.size());
+  for (i32 TriIndex = 0; TriIndex < Obj.f.size(); ++TriIndex) {
+    for3(I) {
+      auto MeshTriangleIndex = 3*TriIndex + I;
+      ASSERT_EQ(0<=MeshTriangleIndex && MeshTriangleIndex<Mesh.Triangle.size(), true);
+      auto& MeshVertexIndex = Mesh.Triangle[MeshTriangleIndex];
+      auto& MeshUV = Mesh.Vertex[MeshVertexIndex].TextureCoords;
+      auto& ObjUVIndex = Obj.f[TriIndex].Index[3*I+1];
+      auto& ObjUV = Obj.vt[ObjUVIndex-1];
+      for3(J) {
+        ASSERT_EQ(ObjUV.Data[J], MeshUV.Data[J]);
       }
     }
   }
@@ -509,6 +551,8 @@ void run_test(std::function<bool()> test, string TestName)
 int main(int argc, char *argv[])
 {
   RUN_TEST(test_convert_cube_to_mesh_positions);
+  RUN_TEST(test_convert_cube_to_mesh_normals);
+  RUN_TEST(test_convert_cube_to_mesh_uvs);
 
   RUN_TEST(test_open_cube_file);
   RUN_TEST(test_parse_cube_vertices);
