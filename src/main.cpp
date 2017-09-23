@@ -84,6 +84,15 @@ obj_file_data parse_obj(ifstream& In)
       // Ignore any values after the third
       Data.vt.push_back(Value);
     } else if (starts_with(Line, "vn ")) {
+      stringstream LineStream(Line);
+      vec3 Value;
+      string Token;
+      getline(LineStream, Token, ' ');
+      LineStream >> Value.X;
+      LineStream >> Value.Y;
+      LineStream >> Value.Z;
+      // Ignore any values after the third
+      Data.vn.push_back(Value);
     } else if (starts_with(Line, "f ")) {
     }
   }
