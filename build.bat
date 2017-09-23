@@ -32,6 +32,7 @@ REM warning C4714: function ... marked as __forceinline not inlined (because
 REM                QString::trimmed)
 REM /c Compile only, no link
 
+set DEBUG="debug"
 set COMPILER_FLAGS_DEBUG=/MTd
 set COMPILER_FLAGS_RELEASE=/MT
 
