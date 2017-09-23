@@ -62,6 +62,9 @@ struct obj_file_data {
 mesh convert_to_mesh(const obj_file_data& Obj)
 {
   mesh Result;
+  if (Obj.v.empty()) {
+    return Result;
+  }
 
   i32 NumTriangles = (i32)std::count_if(Obj.f.begin(), Obj.f.end(), [](auto f){return f.NumVertices==3;});
 
@@ -83,12 +86,13 @@ mesh convert_to_mesh(const obj_file_data& Obj)
     }
   }
 
+  // Sort indices to find out which indices are unique.
   vector<i32> Sorting(VertexIndices.size());
   vector<i32> Replacement(VertexIndices.size());
   {
     std::iota(begin(Sorting), end(Sorting), static_cast<i32>(0));
-    auto Pred = [&](auto a, auto b) { return VertexIndices[a] < VertexIndices[b]; };
-    std::sort(begin(Sorting), end(Sorting), Pred);
+    std::sort(begin(Sorting), end(Sorting),
+        [&](auto L, auto R) { return VertexIndices[L] < VertexIndices[R]; });
   }
   {
     auto It1 = Sorting.begin();
@@ -104,19 +108,28 @@ mesh convert_to_mesh(const obj_file_data& Obj)
     }
   }
 
-  i32 NumVertexIndices = 0;
-  i32 NumReplaced = 0;
-  auto& NumReplacedOffset = Sorting;
-  for (i32 I = 0; I < Replacement.size(); ++I) {
+  i32 NumRequiredVertexIndices = 0;
+  auto& NumReplacedUpTo = Sorting; // "Rename" variable.
+  for (i32 I = 0, NumReplacedSoFar = 0; I < Replacement.size(); ++I) {
     if (I == Replacement[I]) {
-      ++NumVertexIndices;
+      ++NumRequiredVertexIndices;
     } else {
-      ++NumReplaced;
+      ++NumReplacedSoFar;
     }
-    NumReplacedOffset[I] = NumReplaced;
+    NumReplacedUpTo[I] = NumReplacedSoFar;
   }
 
-  Result.Vertex.resize(NumVertexIndices);
+  // Ex.: Replacement[I] is
+  //   0 1 2 2 1 5 6 7 8 8 7 11 12
+  // The indices 3,4,9,10 were replaced, so for the final index we would like to find a tight
+  // packing with indices 0..8. NumReplacedUpTo[I] is
+  //   0 0 0 1 2 2 2 2 2 3 4  4  4
+  // That means NumReplacedUpTo[Replacement[I]] is
+  //   0 0 0 0 0 2 2 2 2 2 2  4  4
+  // and the diff Replacement[I]-NumReplacedUpTo[Replacement[I]] is:
+  //   0 1 2 2 1 3 4 5 6 6 5  7  8
+
+  Result.Vertex.resize(NumRequiredVertexIndices);
   Result.Triangle.reserve(3*NumTriangles);
   i32 Index = 0;
   for (auto& f: Obj.f) {
@@ -128,7 +141,7 @@ mesh convert_to_mesh(const obj_file_data& Obj)
         auto VertexIndex = f.Index[Stride * I];
         auto UVIndex = f.HasVt ? f.Index[Stride * I + UVOffset] : 0;
         auto NormalIndex = f.HasVn ? f.Index[Stride * I + NormalOffset] : 0;
-        auto FinalIndex = Replacement[Index] - NumReplacedOffset[Replacement[Index]];
+        auto FinalIndex = Replacement[Index] - NumReplacedUpTo[Replacement[Index]];
         if (Replacement[Index] == Index) {
           auto& Vertex = Result.Vertex[FinalIndex];
           Vertex.Position = Obj.v[VertexIndex - 1];
@@ -310,6 +323,12 @@ const obj_file_data CubeObj = {
       {3, true, true, {5,3,6, 1,2,6, 3,4,6}},
     }
   };
+}
+
+bool test_convert_to_mesh_wont_crash_on_empty_input()
+{
+  mesh Mesh = convert_to_mesh(obj_file_data());
+  return true;
 }
 
 bool test_convert_cube_to_mesh_positions()
@@ -553,6 +572,7 @@ int main(int argc, char *argv[])
   RUN_TEST(test_convert_cube_to_mesh_positions);
   RUN_TEST(test_convert_cube_to_mesh_normals);
   RUN_TEST(test_convert_cube_to_mesh_uvs);
+  RUN_TEST(test_convert_to_mesh_wont_crash_on_empty_input);
 
   RUN_TEST(test_open_cube_file);
   RUN_TEST(test_parse_cube_vertices);
