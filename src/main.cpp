@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <functional>
+#include <algorithm>
 #include <vector>
 #include <sstream>
 
@@ -29,7 +30,7 @@ struct vec3 {
       f32 Y;
       f32 Z;
     };
-    f32 Coord[3];
+    f32 Data[3];
   };
 };
 struct vertex_data {
@@ -59,6 +60,14 @@ struct obj_file_data {
 mesh convert_to_mesh(const obj_file_data& Obj)
 {
   mesh Result;
+  Result.Vertex.resize(Obj.v.size());
+  auto ItTgt = Result.Vertex.begin();
+  for (auto It = Obj.v.begin(), ItEnd = Obj.v.end(); It != ItEnd; ++It, ++ItTgt) {
+    ItTgt->Position = *It;
+  }
+
+  i32 NumTriangles = (i32)std::count_if(Obj.f.begin(), Obj.f.end(), [](auto f){return f.NumVertices==3;});
+  Result.Triangle.resize(NumTriangles);
   return Result;
 }
 
@@ -230,12 +239,25 @@ const obj_file_data CubeObj = {
   };
 }
 
-bool test_convert_cube_to_mesh()
+#define for3(I) for(auto I=0; I<3; ++I)
+bool test_convert_cube_to_mesh_positions()
 {
-  auto& Data = CubeObj;
-  mesh Mesh = convert_to_mesh(Data);
-  ASSERT_EQ(Mesh.Vertex.size(), Data.v.size());
-  ASSERT_EQ(Mesh.Triangle.size(), Data.f.size());
+  auto& Obj = CubeObj;
+  mesh Mesh = convert_to_mesh(Obj);
+  ASSERT_EQ(Mesh.Triangle.size(), Obj.f.size());
+  for (i32 TriIndex = 0; TriIndex < Obj.f.size(); ++TriIndex) {
+    for3(I) {
+      auto MeshTriangleIndex = 3*TriIndex + I;
+      ASSERT_EQ(0<MeshTriangleIndex && MeshTriangleIndex<Mesh.Triangle.size(), true);
+      auto& MeshVertexIndex = Mesh.Triangle[MeshTriangleIndex];
+      auto& MeshVertex = Mesh.Vertex[MeshVertexIndex].Position;
+      auto& ObjVertexIndex = Obj.f[TriIndex].Index[3*I+0];
+      auto& ObjVertex = Obj.v[ObjVertexIndex-1];
+      for3(J) {
+        ASSERT_EQ(MeshVertex.Data[J], ObjVertex.Data[J]);
+      }
+    }
+  }
   return true;
 }
 
@@ -414,7 +436,8 @@ void run_test(std::function<bool()> test, string TestName)
 #define RUN_TEST(TestName) run_test(TestName, #TestName)
 int main(int argc, char *argv[])
 {
-  RUN_TEST(test_convert_cube_to_mesh);
+  RUN_TEST(test_convert_cube_to_mesh_positions);
+
   RUN_TEST(test_open_cube_file);
   RUN_TEST(test_parse_cube_vertices);
   RUN_TEST(test_parse_cube_texture_coords);
