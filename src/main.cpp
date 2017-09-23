@@ -98,7 +98,7 @@ obj_file_data parse_obj(istream& In)
       obj_face_data Value = {0};
       string VertexToken;
       getline(LineStream, VertexToken, ' ');
-      i32 NumEntries = 1;
+      i32 NumIndexTokens = 1;
       while (getline(LineStream, VertexToken, ' ')) {
         stringstream VertexStream(VertexToken);
         string IndexToken;
@@ -133,9 +133,9 @@ obj_file_data parse_obj(istream& In)
               }
             }
           }
-          NumEntries = 1 + (Value.HasVt || Value.HasVn ? 1 : 0) + (Value.HasVn ? 1 : 0);
+          NumIndexTokens = 1 + (Value.HasVt || Value.HasVn ? 1 : 0) + (Value.HasVn ? 1 : 0);
         } else {
-          for (i32 I = 0; I < NumEntries; ++I) {
+          for (i32 I = 0; I < NumIndexTokens; ++I) {
             getline(VertexStream, IndexToken, '/');
             if (IndexToken.size()) {
               Value.Index.push_back(std::stoi(IndexToken));
