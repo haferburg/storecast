@@ -55,6 +55,13 @@ struct obj_file_data {
   vector<vec3> vn;
   vector<obj_face_data> f;
 };
+
+mesh convert_to_mesh(const obj_file_data& Obj)
+{
+  mesh Result;
+  return Result;
+}
+
 namespace {
 i32 parse_int(const string& S) {
   return S.size() > 0 ? std::stoi(S) : 0;
@@ -181,7 +188,57 @@ i32 read_entire_file(ifstream& In)
 namespace {
 const string CubeFilePath = "../data/cube.obj";
 const string DuckyFilePath = "../data/ducky.obj";
+const obj_file_data CubeObj = {
+    {
+      {-0.500000, -0.500000, 0.500000},
+      {0.500000, -0.500000, 0.500000},
+      {-0.500000, 0.500000, 0.500000},
+      {0.500000, 0.500000, 0.500000},
+      {-0.500000, 0.500000, -0.500000},
+      {0.500000, 0.500000, -0.500000},
+      {-0.500000, -0.500000, -0.500000},
+      {0.500000, -0.500000, -0.500000},
+    },
+    {
+      {0.000000, 0.000000},
+      {1.000000, 0.000000},
+      {0.000000, 1.000000},
+      {1.000000, 1.000000},
+    },
+    {
+      {0.000000, 0.000000, 1.000000},
+      {0.000000, 1.000000, 0.000000},
+      {0.000000, 0.000000, -1.000000},
+      {0.000000, -1.000000, 0.000000},
+      {1.000000, 0.000000, 0.000000},
+      {-1.000000, 0.000000, 0.000000},
+    },
+    {
+      {3, true, true, {1,1,1, 2,2,1, 3,3,1}},
+      {3, true, true, {3,3,1, 2,2,1, 4,4,1}},
+      {3, true, true, {3,1,2, 4,2,2, 5,3,2}},
+      {3, true, true, {5,3,2, 4,2,2, 6,4,2}},
+      {3, true, true, {5,4,3, 6,3,3, 7,2,3}},
+      {3, true, true, {7,2,3, 6,3,3, 8,1,3}},
+      {3, true, true, {7,1,4, 8,2,4, 1,3,4}},
+      {3, true, true, {1,3,4, 8,2,4, 2,4,4}},
+      {3, true, true, {2,1,5, 8,2,5, 4,3,5}},
+      {3, true, true, {4,3,5, 8,2,5, 6,4,5}},
+      {3, true, true, {7,1,6, 1,2,6, 5,3,6}},
+      {3, true, true, {5,3,6, 1,2,6, 3,4,6}},
+    }
+  };
 }
+
+bool test_convert_cube_to_mesh()
+{
+  auto& Data = CubeObj;
+  mesh Mesh = convert_to_mesh(Data);
+  ASSERT_EQ(Mesh.Vertex.size(), Data.v.size());
+  ASSERT_EQ(Mesh.Triangle.size(), Data.f.size());
+  return true;
+}
+
 bool test_parse_cube_vertices()
 {
   ifstream File(CubeFilePath);
@@ -357,6 +414,7 @@ void run_test(std::function<bool()> test, string TestName)
 #define RUN_TEST(TestName) run_test(TestName, #TestName)
 int main(int argc, char *argv[])
 {
+  RUN_TEST(test_convert_cube_to_mesh);
   RUN_TEST(test_open_cube_file);
   RUN_TEST(test_parse_cube_vertices);
   RUN_TEST(test_parse_cube_texture_coords);
