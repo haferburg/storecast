@@ -72,6 +72,17 @@ obj_file_data parse_obj(ifstream& In)
       // Ignore any values after the third
       Data.v.push_back(Value);
     } else if (starts_with(Line, "vt ")) {
+      stringstream LineStream(Line);
+      vec3 Value;
+      string Token;
+      getline(LineStream, Token, ' ');
+      LineStream >> Value.X;
+      LineStream >> Value.Y;
+      if (!(LineStream >> Value.Z)) {
+        Value.Z = 1.0f;
+      }
+      // Ignore any values after the third
+      Data.vt.push_back(Value);
     } else if (starts_with(Line, "vn ")) {
     } else if (starts_with(Line, "f ")) {
     }
@@ -119,6 +130,12 @@ bool test_parse_cube_texture_coords()
   ifstream File(CubeFilePath);
   obj_file_data Data = parse_obj(File);
   ASSERT_EQ(Data.vt.size(), 4);
+  ASSERT_EQ(Data.vt[0].X, 0.f);
+  ASSERT_EQ(Data.vt[0].Y, 0.f);
+  ASSERT_EQ(Data.vt[0].Z, 1.f);
+  ASSERT_EQ(Data.vt[3].X, 1.f);
+  ASSERT_EQ(Data.vt[3].Y, 1.f);
+  ASSERT_EQ(Data.vt[3].Z, 1.f);
   return true;
 }
 
