@@ -133,7 +133,7 @@ obj_file_data parse_obj(istream& In)
               }
             }
           }
-          NumEntries = 1 + (Value.HasVt ? 1 : 0) + (Value.HasVn ? 1 : 0);
+          NumEntries = 1 + (Value.HasVt || Value.HasVn ? 1 : 0) + (Value.HasVn ? 1 : 0);
         } else {
           for (i32 I = 0; I < NumEntries; ++I) {
             getline(VertexStream, IndexToken, '/');
