@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <vector>
 #include <sstream>
+#include <numeric>
 
 using std::string;
 using std::ifstream;
@@ -56,18 +57,90 @@ struct obj_file_data {
   vector<vec3> vn;
   vector<obj_face_data> f;
 };
+#define for3(I) for(auto I=0; I<3; ++I)
 
 mesh convert_to_mesh(const obj_file_data& Obj)
 {
   mesh Result;
-  Result.Vertex.resize(Obj.v.size());
-  auto ItTgt = Result.Vertex.begin();
-  for (auto It = Obj.v.begin(), ItEnd = Obj.v.end(); It != ItEnd; ++It, ++ItTgt) {
-    ItTgt->Position = *It;
-  }
 
   i32 NumTriangles = (i32)std::count_if(Obj.f.begin(), Obj.f.end(), [](auto f){return f.NumVertices==3;});
-  Result.Triangle.resize(NumTriangles);
+
+  typedef std::tuple<i32, i32, i32> vert_indices;
+  vector<vert_indices> VertexIndices;
+  VertexIndices.reserve(3 * NumTriangles);
+
+  for (auto& f: Obj.f) {
+    if (f.NumVertices == 3) {
+      auto Stride = 1 + (f.HasVt ? 1 : 0) + (f.HasVn ? 1 : 0);
+      auto UVOffset = 1;
+      auto NormalOffset = 1 + (f.HasVt ? 1 : 0);
+      for3(I) {
+        auto VertexIndex = f.Index[Stride * I];
+        auto UVIndex = f.HasVt ? f.Index[Stride * I + UVOffset] : 0;
+        auto NormalIndex = f.HasVn ? f.Index[Stride * I + NormalOffset] : 0;
+        VertexIndices.push_back(std::make_tuple(VertexIndex, UVIndex, NormalIndex));
+      }
+    }
+  }
+
+  vector<i32> Sorting(VertexIndices.size());
+  vector<i32> Replacement(VertexIndices.size());
+  {
+    std::iota(begin(Sorting), end(Sorting), static_cast<i32>(0));
+    auto Pred = [&](auto a, auto b) { return VertexIndices[a] < VertexIndices[b]; };
+    std::sort(begin(Sorting), end(Sorting), Pred);
+  }
+  {
+    auto It1 = Sorting.begin();
+    auto It2 = std::next(Sorting.begin());
+    auto ItEnd = Sorting.end();
+    Replacement[0] = 0;
+    for (; It2 != ItEnd; ++It1, ++It2) {
+      if (VertexIndices[*It1] == VertexIndices[*It2]) {
+        Replacement[*It2] = *It1;
+      } else {
+        Replacement[*It2] = *It2;
+      }
+    }
+  }
+
+  i32 NumVertexIndices = 0;
+  i32 NumReplaced = 0;
+  auto& NumReplacedOffset = Sorting;
+  for (i32 I = 0; I < Replacement.size(); ++I) {
+    if (I == Replacement[I]) {
+      ++NumVertexIndices;
+    } else {
+      ++NumReplaced;
+    }
+    NumReplacedOffset[I] = NumReplaced;
+  }
+
+  Result.Vertex.resize(NumVertexIndices);
+  Result.Triangle.reserve(3*NumTriangles);
+  i32 Index = 0;
+  for (auto& f: Obj.f) {
+    if (f.NumVertices == 3) {
+      auto Stride = 1 + (f.HasVt ? 1 : 0) + (f.HasVn ? 1 : 0);
+      auto UVOffset = 1;
+      auto NormalOffset = 1 + (f.HasVt ? 1 : 0);
+      for3(I) {
+        auto VertexIndex = f.Index[Stride * I];
+        auto UVIndex = f.HasVt ? f.Index[Stride * I + UVOffset] : 0;
+        auto NormalIndex = f.HasVn ? f.Index[Stride * I + NormalOffset] : 0;
+        auto FinalIndex = Replacement[Index] - NumReplacedOffset[Replacement[Index]];
+        if (Replacement[Index] == Index) {
+          auto& Vertex = Result.Vertex[FinalIndex];
+          Vertex.Position = Obj.v[VertexIndex - 1];
+          Vertex.Normal = Obj.vn[NormalIndex - 1];
+          Vertex.TextureCoords = Obj.vt[UVIndex - 1];
+        }
+        Result.Triangle.push_back(FinalIndex);
+        ++Index;
+      }
+    }
+  }
+
   return Result;
 }
 
@@ -239,16 +312,15 @@ const obj_file_data CubeObj = {
   };
 }
 
-#define for3(I) for(auto I=0; I<3; ++I)
 bool test_convert_cube_to_mesh_positions()
 {
   auto& Obj = CubeObj;
   mesh Mesh = convert_to_mesh(Obj);
-  ASSERT_EQ(Mesh.Triangle.size(), Obj.f.size());
+  ASSERT_EQ(Mesh.Triangle.size(), 3*Obj.f.size());
   for (i32 TriIndex = 0; TriIndex < Obj.f.size(); ++TriIndex) {
     for3(I) {
       auto MeshTriangleIndex = 3*TriIndex + I;
-      ASSERT_EQ(0<MeshTriangleIndex && MeshTriangleIndex<Mesh.Triangle.size(), true);
+      ASSERT_EQ(0<=MeshTriangleIndex && MeshTriangleIndex<Mesh.Triangle.size(), true);
       auto& MeshVertexIndex = Mesh.Triangle[MeshTriangleIndex];
       auto& MeshVertex = Mesh.Vertex[MeshVertexIndex].Position;
       auto& ObjVertexIndex = Obj.f[TriIndex].Index[3*I+0];
