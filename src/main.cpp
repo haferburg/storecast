@@ -55,6 +55,11 @@ struct obj_file_data {
   vector<vec3> vn;
   vector<obj_face_data> f;
 };
+namespace {
+i32 parse_int(const string& S) {
+  return S.size() > 0 ? std::stoi(S) : 0;
+}
+}
 obj_file_data parse_obj(istream& In)
 {
   obj_file_data Data;
@@ -115,18 +120,17 @@ obj_file_data parse_obj(istream& In)
           // >     f 1/1/1 2/2/2 3//3 4//4
 
           getline(VertexStream, IndexToken, '/');
-          i32 Index = IndexToken.size() > 0 ? std::stoi(IndexToken) : 0;
-          Value.Index.push_back(Index);
+          Value.Index.push_back(parse_int(IndexToken));
 
           if (getline(VertexStream, IndexToken, '/')) {
-            Index = IndexToken.size() > 0 ? std::stoi(IndexToken) : 0;
+            i32 Index = parse_int(IndexToken);
             Value.HasVt = Index > 0;
             if (Value.HasVt) {
               Value.Index.push_back(Index);
             }
 
             if (getline(VertexStream, IndexToken, '/')) {
-              Index = IndexToken.size() > 0 ? std::stoi(IndexToken) : 0;
+              Index = parse_int(IndexToken);
               Value.HasVn = Index > 0;
               if (Value.HasVn) {
                 Value.Index.push_back(Index);
