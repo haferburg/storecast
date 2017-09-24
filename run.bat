@@ -15,5 +15,10 @@ IF NOT DEFINED runtime_path (
 pushd %project_dir%\bin
 @setlocal
 set PATH=%runtime_path%
-%project%.exe
+if "%1"=="Tests" (
+  %project%.exe
+) else (
+  %project%.exe %project_dir%\data\ducky.obj
+)
+rem %project%.exe %project_dir%\data\cube.obj
 popd

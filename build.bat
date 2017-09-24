@@ -63,15 +63,30 @@ set LINKER_FLAGS= /subsystem:console^
 rem Taskkill /IM %project%.exe >nul 2>&1
 
 ECHO ------- %project%.exe ---------------------------------------------------------
+where /q ctime.exe
+IF NOT ERRORLEVEL 1 (
+  set have_ctime=1
+)
+
+if DEFINED have_ctime (ctime -begin "%project_dir%\%project%.ctm")
 cl.exe %COMPILER_FLAGS%^
  /Fm%project%.map /Fe%project%.exe^
  %project_dir%\src\main.cpp^
+ %project_dir%\src\obj_import.cpp^
+ %project_dir%\src\mesh.cpp^
+ %project_dir%\src\tests.cpp^
  /link %LINKER_FLAGS%
+set compiler_error=%ERRORLEVEL%
+if DEFINED have_ctime (ctime -end "%project_dir%\%project%.ctm" %ERRORLEVEL%)
 popd
-if errorlevel 1 GOTO:EOF
+
+if %compiler_error% NEQ 0 (
+  echo Compilation failed...
+  GOTO:EOF
+)
 
 if NOT EXIST bin ( mkdir bin )
 call copy_if_different %build_dir%\%project%.exe bin\%project%.exe
 
 echo Running tests
-call run.bat
+call run.bat Tests
