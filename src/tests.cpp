@@ -111,6 +111,19 @@ bool test_convert_to_mesh_wont_crash_on_empty_input()
   return true;
 }
 
+bool test_convert_to_mesh_without_uvs()
+{
+  obj_file_data Obj = { CubeVertices, {}, CubeNormals,
+    {
+      {4, false, true, {1,1, 2,1, 3,1, 4,1}},
+      {4, false, true, {3,2, 4,2, 5,2, 6,2}},
+      {4, false, true, {5,3, 6,3, 7,3, 8,3}},
+    }
+  };
+  mesh Mesh = convert_to_mesh(Obj);
+  return false;
+}
+
 bool test_convert_cube_to_mesh_positions()
 {
   auto& Obj = CubeObj;
@@ -380,6 +393,7 @@ void run_test(std::function<bool()> test, string TestName)
 void run_test(std::function<bool()> test, std::string TestName);
 void run_all_tests()
 {
+  RUN_TEST(test_convert_to_mesh_without_uvs);
   RUN_TEST(test_convert_cube_to_mesh_positions);
   RUN_TEST(test_convert_quad_cube_to_mesh);
   RUN_TEST(test_convert_cube_to_mesh_normals);
