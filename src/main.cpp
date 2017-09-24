@@ -58,7 +58,7 @@ struct obj_file_data {
   vector<obj_face_data> f;
 };
 #define for3(I) for(auto I=0; I<3; ++I)
-
+#define for4(I) for(auto I=0; I<4; ++I)
 
 mesh convert_to_mesh(const obj_file_data& Obj)
 {
@@ -68,22 +68,21 @@ mesh convert_to_mesh(const obj_file_data& Obj)
   }
 
   i32 NumTriangles = (i32)std::count_if(Obj.f.begin(), Obj.f.end(), [](auto f){return f.NumVertices==3;});
+  i32 NumQuads = (i32)std::count_if(Obj.f.begin(), Obj.f.end(), [](auto f){return f.NumVertices==4;});
 
   typedef std::tuple<i32, i32, i32> vert_indices;
   vector<vert_indices> VertexIndices;
-  VertexIndices.reserve(3 * NumTriangles);
+  VertexIndices.reserve(3 * NumTriangles + 4 * NumQuads);
 
   for (auto& f: Obj.f) {
-    if (f.NumVertices == 3) {
-      auto Stride = 1 + (f.HasVt ? 1 : 0) + (f.HasVn ? 1 : 0);
-      auto UVOffset = 1;
-      auto NormalOffset = 1 + (f.HasVt ? 1 : 0);
-      for3(I) {
-        auto VertexIndex = f.Index[Stride * I];
-        auto UVIndex = f.HasVt ? f.Index[Stride * I + UVOffset] : 0;
-        auto NormalIndex = f.HasVn ? f.Index[Stride * I + NormalOffset] : 0;
-        VertexIndices.push_back(std::make_tuple(VertexIndex, UVIndex, NormalIndex));
-      }
+    auto Stride = 1 + (f.HasVt ? 1 : 0) + (f.HasVn ? 1 : 0);
+    auto UVOffset = 1;
+    auto NormalOffset = 1 + (f.HasVt ? 1 : 0);
+    for (auto I = 0; I < f.NumVertices; ++I) {
+      auto VertexIndex = f.Index[Stride * I];
+      auto UVIndex = f.HasVt ? f.Index[Stride * I + UVOffset] : 0;
+      auto NormalIndex = f.HasVn ? f.Index[Stride * I + NormalOffset] : 0;
+      VertexIndices.push_back(std::make_tuple(VertexIndex, UVIndex, NormalIndex));
     }
   }
 
@@ -132,26 +131,29 @@ mesh convert_to_mesh(const obj_file_data& Obj)
 
   Result.Vertex.resize(NumRequiredVertexIndices);
   Result.Triangle.reserve(3*NumTriangles);
+  Result.Quad.reserve(4*NumQuads);
   i32 Index = 0;
   for (auto& f: Obj.f) {
-    if (f.NumVertices == 3) {
-      auto Stride = 1 + (f.HasVt ? 1 : 0) + (f.HasVn ? 1 : 0);
-      auto UVOffset = 1;
-      auto NormalOffset = 1 + (f.HasVt ? 1 : 0);
-      for3(I) {
-        auto VertexIndex = f.Index[Stride * I];
-        auto UVIndex = f.HasVt ? f.Index[Stride * I + UVOffset] : 0;
-        auto NormalIndex = f.HasVn ? f.Index[Stride * I + NormalOffset] : 0;
-        auto FinalIndex = Replacement[Index] - NumReplacedUpTo[Replacement[Index]];
-        if (Replacement[Index] == Index) {
-          auto& Vertex = Result.Vertex[FinalIndex];
-          Vertex.Position = Obj.v[VertexIndex - 1];
-          Vertex.Normal = Obj.vn[NormalIndex - 1];
-          Vertex.TextureCoords = Obj.vt[UVIndex - 1];
-        }
-        Result.Triangle.push_back(FinalIndex);
-        ++Index;
+    auto Stride = 1 + (f.HasVt ? 1 : 0) + (f.HasVn ? 1 : 0);
+    auto UVOffset = 1;
+    auto NormalOffset = 1 + (f.HasVt ? 1 : 0);
+    for (auto I = 0; I < f.NumVertices; ++I) {
+      auto VertexIndex = f.Index[Stride * I];
+      auto UVIndex = f.HasVt ? f.Index[Stride * I + UVOffset] : 0;
+      auto NormalIndex = f.HasVn ? f.Index[Stride * I + NormalOffset] : 0;
+      auto FinalIndex = Replacement[Index] - NumReplacedUpTo[Replacement[Index]];
+      if (Replacement[Index] == Index) {
+        auto& Vertex = Result.Vertex[FinalIndex];
+        Vertex.Position = Obj.v[VertexIndex - 1];
+        Vertex.Normal = Obj.vn[NormalIndex - 1];
+        Vertex.TextureCoords = Obj.vt[UVIndex - 1];
       }
+      if (f.NumVertices == 3) {
+        Result.Triangle.push_back(FinalIndex);
+      } else if (f.NumVertices == 4) {
+        Result.Quad.push_back(FinalIndex);
+      }
+      ++Index;
     }
   }
 
@@ -289,46 +291,59 @@ i32 read_entire_file(ifstream& In)
 namespace {
 const string CubeFilePath = "../data/cube.obj";
 const string DuckyFilePath = "../data/ducky.obj";
+const vector<vec3> CubeVertices {
+  {-0.500000, -0.500000, 0.500000},
+  {0.500000, -0.500000, 0.500000},
+  {-0.500000, 0.500000, 0.500000},
+  {0.500000, 0.500000, 0.500000},
+  {-0.500000, 0.500000, -0.500000},
+  {0.500000, 0.500000, -0.500000},
+  {-0.500000, -0.500000, -0.500000},
+  {0.500000, -0.500000, -0.500000},
+};
+const vector<vec3> CubeUVs = {
+  {0.000000, 0.000000},
+  {1.000000, 0.000000},
+  {0.000000, 1.000000},
+  {1.000000, 1.000000},
+};
+const vector<vec3> CubeNormals = {
+  {0.000000, 0.000000, 1.000000},
+  {0.000000, 1.000000, 0.000000},
+  {0.000000, 0.000000, -1.000000},
+  {0.000000, -1.000000, 0.000000},
+  {1.000000, 0.000000, 0.000000},
+  {-1.000000, 0.000000, 0.000000},
+};
+
 const obj_file_data CubeObj = {
-    {
-      {-0.500000, -0.500000, 0.500000},
-      {0.500000, -0.500000, 0.500000},
-      {-0.500000, 0.500000, 0.500000},
-      {0.500000, 0.500000, 0.500000},
-      {-0.500000, 0.500000, -0.500000},
-      {0.500000, 0.500000, -0.500000},
-      {-0.500000, -0.500000, -0.500000},
-      {0.500000, -0.500000, -0.500000},
-    },
-    {
-      {0.000000, 0.000000},
-      {1.000000, 0.000000},
-      {0.000000, 1.000000},
-      {1.000000, 1.000000},
-    },
-    {
-      {0.000000, 0.000000, 1.000000},
-      {0.000000, 1.000000, 0.000000},
-      {0.000000, 0.000000, -1.000000},
-      {0.000000, -1.000000, 0.000000},
-      {1.000000, 0.000000, 0.000000},
-      {-1.000000, 0.000000, 0.000000},
-    },
-    {
-      {3, true, true, {1,1,1, 2,2,1, 3,3,1}},
-      {3, true, true, {3,3,1, 2,2,1, 4,4,1}},
-      {3, true, true, {3,1,2, 4,2,2, 5,3,2}},
-      {3, true, true, {5,3,2, 4,2,2, 6,4,2}},
-      {3, true, true, {5,4,3, 6,3,3, 7,2,3}},
-      {3, true, true, {7,2,3, 6,3,3, 8,1,3}},
-      {3, true, true, {7,1,4, 8,2,4, 1,3,4}},
-      {3, true, true, {1,3,4, 8,2,4, 2,4,4}},
-      {3, true, true, {2,1,5, 8,2,5, 4,3,5}},
-      {3, true, true, {4,3,5, 8,2,5, 6,4,5}},
-      {3, true, true, {7,1,6, 1,2,6, 5,3,6}},
-      {3, true, true, {5,3,6, 1,2,6, 3,4,6}},
-    }
-  };
+  CubeVertices, CubeUVs, CubeNormals,
+  {
+    {3, true, true, {1,1,1, 2,2,1, 3,3,1}},
+    {3, true, true, {3,3,1, 2,2,1, 4,4,1}},
+    {3, true, true, {3,1,2, 4,2,2, 5,3,2}},
+    {3, true, true, {5,3,2, 4,2,2, 6,4,2}},
+    {3, true, true, {5,4,3, 6,3,3, 7,2,3}},
+    {3, true, true, {7,2,3, 6,3,3, 8,1,3}},
+    {3, true, true, {7,1,4, 8,2,4, 1,3,4}},
+    {3, true, true, {1,3,4, 8,2,4, 2,4,4}},
+    {3, true, true, {2,1,5, 8,2,5, 4,3,5}},
+    {3, true, true, {4,3,5, 8,2,5, 6,4,5}},
+    {3, true, true, {7,1,6, 1,2,6, 5,3,6}},
+    {3, true, true, {5,3,6, 1,2,6, 3,4,6}},
+  }
+};
+const obj_file_data QuadCubeObj = {
+  CubeVertices, CubeUVs, CubeNormals,
+  {
+    {4, true, true, {1,1,1, 2,2,1, 3,3,1, 4,4,1}},
+    {4, true, true, {3,1,2, 4,2,2, 5,3,2, 6,4,2}},
+    {4, true, true, {5,4,3, 6,3,3, 7,2,3, 8,1,3}},
+    {4, true, true, {7,1,4, 8,2,4, 1,3,4, 2,4,4}},
+    {4, true, true, {2,1,5, 8,2,5, 4,3,5, 6,4,5}},
+    {4, true, true, {7,1,6, 1,2,6, 5,3,6, 3,4,6}},
+  }
+};
 }
 
 bool test_convert_to_mesh_wont_crash_on_empty_input()
@@ -352,6 +367,32 @@ bool test_convert_cube_to_mesh_positions()
       auto& ObjVertex = Obj.v[ObjVertexIndex-1];
       for3(J) {
         ASSERT_EQ(MeshVertexPosition.Data[J], ObjVertex.Data[J]);
+      }
+    }
+  }
+  return true;
+}
+
+bool test_convert_quad_cube_to_mesh()
+{
+  auto& Obj = QuadCubeObj;
+  mesh Mesh = convert_to_mesh(Obj);
+  ASSERT_EQ(Mesh.Triangle.size(), 0);
+  ASSERT_EQ(Mesh.Quad.size(), 4*Obj.f.size());
+  for (i32 QuadIndex = 0; QuadIndex < Obj.f.size(); ++QuadIndex) {
+    for4(I) {
+      auto MeshQuadIndex = 4*QuadIndex + I;
+      ASSERT_EQ(0<=MeshQuadIndex && MeshQuadIndex<Mesh.Quad.size(), true);
+      auto& MeshVertexIndex = Mesh.Quad[MeshQuadIndex];
+      auto& MeshVertexPosition = Mesh.Vertex[MeshVertexIndex].Position;
+      auto& MeshNormal = Mesh.Vertex[MeshVertexIndex].Normal;
+      auto& ObjVertexIndex = Obj.f[QuadIndex].Index[3*I+0];
+      auto& ObjVertex = Obj.v[ObjVertexIndex-1];
+      auto& ObjNormalIndex = Obj.f[QuadIndex].Index[3*I+2];
+      auto& ObjNormal = Obj.vn[ObjNormalIndex-1];
+      for3(J) {
+        ASSERT_EQ(MeshVertexPosition.Data[J], ObjVertex.Data[J]);
+        ASSERT_EQ(MeshNormal.Data[J], ObjNormal.Data[J]);
       }
     }
   }
@@ -576,6 +617,7 @@ void run_test(std::function<bool()> test, string TestName)
 int main(int argc, char *argv[])
 {
   RUN_TEST(test_convert_cube_to_mesh_positions);
+  RUN_TEST(test_convert_quad_cube_to_mesh);
   RUN_TEST(test_convert_cube_to_mesh_normals);
   RUN_TEST(test_convert_cube_to_mesh_uvs);
   RUN_TEST(test_convert_to_mesh_wont_crash_on_empty_input);
