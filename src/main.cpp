@@ -59,6 +59,7 @@ struct obj_file_data {
 };
 #define for3(I) for(auto I=0; I<3; ++I)
 
+
 mesh convert_to_mesh(const obj_file_data& Obj)
 {
   mesh Result;
@@ -250,7 +251,12 @@ obj_file_data parse_obj(istream& In)
         }
         ++Value.NumVertices;
       }
-      Data.f.push_back(Value);
+
+      // "For this assignment, we just ask you to ignore all polygons that are not a triangle
+      // or a quad."
+      if (3 <= Value.NumVertices && Value.NumVertices <= 4) {
+        Data.f.push_back(Value);
+      }
     }
   }
   return Data;
