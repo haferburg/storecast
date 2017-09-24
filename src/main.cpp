@@ -40,20 +40,20 @@ struct vertex_data {
   vec3 TextureCoords;
 };
 struct mesh {
-  vector<vertex_data> Vertex;
+  vector<vertex_data> Vertices;
   // I could have modeled the index buffer as vector<vector<i32> Indices>>, where Indices.size() is
   // the number of face vertices. It would have been easier to write code for, but it wastes a
   // lot of space, and has a lot worse memory locality, resulting in more cache misses. Quads
   // and triangles should be the main use case, especially for rendering.
-  vector<i32> Triangle;
-  vector<i32> Quad;
+  vector<i32> TriangleIndices;
+  vector<i32> QuadIndices;
 };
 
 struct obj_face_data {
   i32 NumVertices;
   bool HasVt;
   bool HasVn;
-  vector<i32> Index;
+  vector<i32> Indices;
 };
 struct obj_file_data {
   vector<vec3> v;
@@ -67,6 +67,7 @@ struct draw_command {
     TRIANGLE,
     QUAD,
   } Type;
+  // Index into mesh::TriangleIndices if Type==TRIANGLE, otherwise into mesh::QuadIndices.
   i32 StartIndex;
   i32 NumVertices;
 };
@@ -74,11 +75,11 @@ struct draw_command {
 vector<draw_command> get_draw_command_list(const mesh& Mesh)
 {
   vector<draw_command> Result;
-  Result.reserve(Mesh.Triangle.size() + Mesh.Quad.size());
-  for (auto IndexOffset = 0; IndexOffset < Mesh.Triangle.size(); IndexOffset += 3) {
+  Result.reserve(Mesh.TriangleIndices.size() + Mesh.QuadIndices.size());
+  for (auto IndexOffset = 0; IndexOffset < Mesh.TriangleIndices.size(); IndexOffset += 3) {
     Result.push_back({draw_command::type::TRIANGLE, IndexOffset, 3});
   }
-  for (auto IndexOffset = 0; IndexOffset < Mesh.Quad.size(); IndexOffset += 4) {
+  for (auto IndexOffset = 0; IndexOffset < Mesh.QuadIndices.size(); IndexOffset += 4) {
     Result.push_back({draw_command::type::QUAD, IndexOffset, 4});
   }
   return Result;
@@ -106,9 +107,9 @@ mesh convert_to_mesh(const obj_file_data& Obj)
     auto UVOffset = 1;
     auto NormalOffset = 1 + (f.HasVt ? 1 : 0);
     for (auto I = 0; I < f.NumVertices; ++I) {
-      auto VertexIndex = f.Index[Stride * I];
-      auto UVIndex = f.HasVt ? f.Index[Stride * I + UVOffset] : 0;
-      auto NormalIndex = f.HasVn ? f.Index[Stride * I + NormalOffset] : 0;
+      auto VertexIndex = f.Indices[Stride * I];
+      auto UVIndex = f.HasVt ? f.Indices[Stride * I + UVOffset] : 0;
+      auto NormalIndex = f.HasVn ? f.Indices[Stride * I + NormalOffset] : 0;
       VertexIndices.push_back(std::make_tuple(VertexIndex, UVIndex, NormalIndex));
     }
   }
@@ -156,29 +157,29 @@ mesh convert_to_mesh(const obj_file_data& Obj)
   // and the diff Replacement[I]-NumReplacedUpTo[Replacement[I]] is:
   //   0 1 2 2 1 3 4 5 6 6 5  7  8
 
-  Result.Vertex.resize(NumRequiredVertexIndices);
-  Result.Triangle.reserve(3*NumTriangles);
-  Result.Quad.reserve(4*NumQuads);
+  Result.Vertices.resize(NumRequiredVertexIndices);
+  Result.TriangleIndices.reserve(3*NumTriangles);
+  Result.QuadIndices.reserve(4*NumQuads);
   i32 Index = 0;
   for (auto& f: Obj.f) {
     auto Stride = 1 + (f.HasVt ? 1 : 0) + (f.HasVn ? 1 : 0);
     auto UVOffset = 1;
     auto NormalOffset = 1 + (f.HasVt ? 1 : 0);
     for (auto I = 0; I < f.NumVertices; ++I) {
-      auto VertexIndex = f.Index[Stride * I];
-      auto UVIndex = f.HasVt ? f.Index[Stride * I + UVOffset] : 0;
-      auto NormalIndex = f.HasVn ? f.Index[Stride * I + NormalOffset] : 0;
+      auto VertexIndex = f.Indices[Stride * I];
+      auto UVIndex = f.HasVt ? f.Indices[Stride * I + UVOffset] : 0;
+      auto NormalIndex = f.HasVn ? f.Indices[Stride * I + NormalOffset] : 0;
       auto FinalIndex = Replacement[Index] - NumReplacedUpTo[Replacement[Index]];
       if (Replacement[Index] == Index) {
-        auto& Vertex = Result.Vertex[FinalIndex];
+        auto& Vertex = Result.Vertices[FinalIndex];
         Vertex.Position = Obj.v[VertexIndex - 1];
         Vertex.Normal = Obj.vn[NormalIndex - 1];
         Vertex.TextureCoords = Obj.vt[UVIndex - 1];
       }
       if (f.NumVertices == 3) {
-        Result.Triangle.push_back(FinalIndex);
+        Result.TriangleIndices.push_back(FinalIndex);
       } else if (f.NumVertices == 4) {
-        Result.Quad.push_back(FinalIndex);
+        Result.QuadIndices.push_back(FinalIndex);
       }
       ++Index;
     }
@@ -252,20 +253,20 @@ obj_file_data parse_obj(istream& In)
           // >     f 1/1/1 2/2/2 3//3 4//4
 
           getline(VertexStream, IndexToken, '/');
-          Value.Index.push_back(parse_int(IndexToken));
+          Value.Indices.push_back(parse_int(IndexToken));
 
           if (getline(VertexStream, IndexToken, '/')) {
             i32 Index = parse_int(IndexToken);
             Value.HasVt = Index > 0;
             if (Value.HasVt) {
-              Value.Index.push_back(Index);
+              Value.Indices.push_back(Index);
             }
 
             if (getline(VertexStream, IndexToken, '/')) {
               Index = parse_int(IndexToken);
               Value.HasVn = Index > 0;
               if (Value.HasVn) {
-                Value.Index.push_back(Index);
+                Value.Indices.push_back(Index);
               }
             }
           }
@@ -274,7 +275,7 @@ obj_file_data parse_obj(istream& In)
           for (i32 I = 0; I < NumIndexTokens; ++I) {
             getline(VertexStream, IndexToken, '/');
             if (IndexToken.size()) {
-              Value.Index.push_back(std::stoi(IndexToken));
+              Value.Indices.push_back(std::stoi(IndexToken));
             }
           }
         }
@@ -383,17 +384,17 @@ bool test_convert_cube_to_mesh_positions()
 {
   auto& Obj = CubeObj;
   mesh Mesh = convert_to_mesh(Obj);
-  ASSERT_EQ(Mesh.Triangle.size(), 3*Obj.f.size());
+  ASSERT_EQ(Mesh.TriangleIndices.size(), 3*Obj.f.size());
   for (i32 TriIndex = 0; TriIndex < Obj.f.size(); ++TriIndex) {
     for3(I) {
       auto MeshTriangleIndex = 3*TriIndex + I;
-      ASSERT_EQ(0<=MeshTriangleIndex && MeshTriangleIndex<Mesh.Triangle.size(), true);
-      auto& MeshVertexIndex = Mesh.Triangle[MeshTriangleIndex];
-      auto& MeshVertexPosition = Mesh.Vertex[MeshVertexIndex].Position;
-      auto& ObjVertexIndex = Obj.f[TriIndex].Index[3*I+0];
+      ASSERT_EQ(0<=MeshTriangleIndex && MeshTriangleIndex<Mesh.TriangleIndices.size(), true);
+      auto& MeshVertexIndex = Mesh.TriangleIndices[MeshTriangleIndex];
+      auto& MeshVertexPosition = Mesh.Vertices[MeshVertexIndex].Position;
+      auto& ObjVertexIndex = Obj.f[TriIndex].Indices[3*I+0];
       auto& ObjVertex = Obj.v[ObjVertexIndex-1];
-      for3(J) {
-        ASSERT_EQ(MeshVertexPosition.Data[J], ObjVertex.Data[J]);
+      for3(Dim) {
+        ASSERT_EQ(MeshVertexPosition.Data[Dim], ObjVertex.Data[Dim]);
       }
     }
   }
@@ -404,22 +405,26 @@ bool test_convert_quad_cube_to_mesh()
 {
   auto& Obj = QuadCubeObj;
   mesh Mesh = convert_to_mesh(Obj);
-  ASSERT_EQ(Mesh.Triangle.size(), 0);
-  ASSERT_EQ(Mesh.Quad.size(), 4*Obj.f.size());
+  ASSERT_EQ(Mesh.TriangleIndices.size(), 0);
+  ASSERT_EQ(Mesh.QuadIndices.size(), 4*Obj.f.size());
   for (i32 QuadIndex = 0; QuadIndex < Obj.f.size(); ++QuadIndex) {
     for4(I) {
       auto MeshQuadIndex = 4*QuadIndex + I;
-      ASSERT_EQ(0<=MeshQuadIndex && MeshQuadIndex<Mesh.Quad.size(), true);
-      auto& MeshVertexIndex = Mesh.Quad[MeshQuadIndex];
-      auto& MeshVertexPosition = Mesh.Vertex[MeshVertexIndex].Position;
-      auto& MeshNormal = Mesh.Vertex[MeshVertexIndex].Normal;
-      auto& ObjVertexIndex = Obj.f[QuadIndex].Index[3*I+0];
+      ASSERT_EQ(0<=MeshQuadIndex && MeshQuadIndex<Mesh.QuadIndices.size(), true);
+      auto& MeshVertexIndex = Mesh.QuadIndices[MeshQuadIndex];
+      auto& MeshVertexPosition = Mesh.Vertices[MeshVertexIndex].Position;
+      auto& MeshNormal = Mesh.Vertices[MeshVertexIndex].Normal;
+      auto& MeshUV = Mesh.Vertices[MeshVertexIndex].TextureCoords;
+      auto& ObjVertexIndex = Obj.f[QuadIndex].Indices[3*I+0];
       auto& ObjVertex = Obj.v[ObjVertexIndex-1];
-      auto& ObjNormalIndex = Obj.f[QuadIndex].Index[3*I+2];
+      auto& ObjUVIndex = Obj.f[QuadIndex].Indices[3*I+1];
+      auto& ObjUV = Obj.vt[ObjUVIndex-1];
+      auto& ObjNormalIndex = Obj.f[QuadIndex].Indices[3*I+2];
       auto& ObjNormal = Obj.vn[ObjNormalIndex-1];
-      for3(J) {
-        ASSERT_EQ(MeshVertexPosition.Data[J], ObjVertex.Data[J]);
-        ASSERT_EQ(MeshNormal.Data[J], ObjNormal.Data[J]);
+      for3(Dim) {
+        ASSERT_EQ(MeshVertexPosition.Data[Dim], ObjVertex.Data[Dim]);
+        ASSERT_EQ(MeshNormal.Data[Dim], ObjNormal.Data[Dim]);
+        ASSERT_EQ(ObjUV.Data[Dim], MeshUV.Data[Dim]);
       }
     }
   }
@@ -430,17 +435,17 @@ bool test_convert_cube_to_mesh_normals()
 {
   auto& Obj = CubeObj;
   mesh Mesh = convert_to_mesh(Obj);
-  ASSERT_EQ(Mesh.Triangle.size(), 3*Obj.f.size());
+  ASSERT_EQ(Mesh.TriangleIndices.size(), 3*Obj.f.size());
   for (i32 TriIndex = 0; TriIndex < Obj.f.size(); ++TriIndex) {
     for3(I) {
       auto MeshTriangleIndex = 3*TriIndex + I;
-      ASSERT_EQ(0<=MeshTriangleIndex && MeshTriangleIndex<Mesh.Triangle.size(), true);
-      auto& MeshVertexIndex = Mesh.Triangle[MeshTriangleIndex];
-      auto& MeshNormal = Mesh.Vertex[MeshVertexIndex].Normal;
-      auto& ObjNormalIndex = Obj.f[TriIndex].Index[3*I+2];
+      ASSERT_EQ(0<=MeshTriangleIndex && MeshTriangleIndex<Mesh.TriangleIndices.size(), true);
+      auto& MeshVertexIndex = Mesh.TriangleIndices[MeshTriangleIndex];
+      auto& MeshNormal = Mesh.Vertices[MeshVertexIndex].Normal;
+      auto& ObjNormalIndex = Obj.f[TriIndex].Indices[3*I+2];
       auto& ObjNormal = Obj.vn[ObjNormalIndex-1];
-      for3(J) {
-        ASSERT_EQ(MeshNormal.Data[J], ObjNormal.Data[J]);
+      for3(Dim) {
+        ASSERT_EQ(MeshNormal.Data[Dim], ObjNormal.Data[Dim]);
       }
     }
   }
@@ -451,17 +456,17 @@ bool test_convert_cube_to_mesh_uvs()
 {
   auto& Obj = CubeObj;
   mesh Mesh = convert_to_mesh(Obj);
-  ASSERT_EQ(Mesh.Triangle.size(), 3*Obj.f.size());
+  ASSERT_EQ(Mesh.TriangleIndices.size(), 3*Obj.f.size());
   for (i32 TriIndex = 0; TriIndex < Obj.f.size(); ++TriIndex) {
     for3(I) {
       auto MeshTriangleIndex = 3*TriIndex + I;
-      ASSERT_EQ(0<=MeshTriangleIndex && MeshTriangleIndex<Mesh.Triangle.size(), true);
-      auto& MeshVertexIndex = Mesh.Triangle[MeshTriangleIndex];
-      auto& MeshUV = Mesh.Vertex[MeshVertexIndex].TextureCoords;
-      auto& ObjUVIndex = Obj.f[TriIndex].Index[3*I+1];
+      ASSERT_EQ(0<=MeshTriangleIndex && MeshTriangleIndex<Mesh.TriangleIndices.size(), true);
+      auto& MeshVertexIndex = Mesh.TriangleIndices[MeshTriangleIndex];
+      auto& MeshUV = Mesh.Vertices[MeshVertexIndex].TextureCoords;
+      auto& ObjUVIndex = Obj.f[TriIndex].Indices[3*I+1];
       auto& ObjUV = Obj.vt[ObjUVIndex-1];
-      for3(J) {
-        ASSERT_EQ(ObjUV.Data[J], MeshUV.Data[J]);
+      for3(Dim) {
+        ASSERT_EQ(ObjUV.Data[Dim], MeshUV.Data[Dim]);
       }
     }
   }
@@ -515,30 +520,30 @@ bool test_parse_cube_faces()
     ASSERT_EQ(f.HasVt, true);
     ASSERT_EQ(f.HasVn, true);
     ASSERT_EQ(f.NumVertices, 3);
-    ASSERT_EQ(f.Index.size(), 3*f.NumVertices);
+    ASSERT_EQ(f.Indices.size(), 3*f.NumVertices);
   }
 
   // f 1/1/1 2/2/1 3/3/1
-  ASSERT_EQ(Data.f[0].Index[0], 1);
-  ASSERT_EQ(Data.f[0].Index[1], 1);
-  ASSERT_EQ(Data.f[0].Index[2], 1);
-  ASSERT_EQ(Data.f[0].Index[3], 2);
-  ASSERT_EQ(Data.f[0].Index[4], 2);
-  ASSERT_EQ(Data.f[0].Index[5], 1);
-  ASSERT_EQ(Data.f[0].Index[6], 3);
-  ASSERT_EQ(Data.f[0].Index[7], 3);
-  ASSERT_EQ(Data.f[0].Index[8], 1);
+  ASSERT_EQ(Data.f[0].Indices[0], 1);
+  ASSERT_EQ(Data.f[0].Indices[1], 1);
+  ASSERT_EQ(Data.f[0].Indices[2], 1);
+  ASSERT_EQ(Data.f[0].Indices[3], 2);
+  ASSERT_EQ(Data.f[0].Indices[4], 2);
+  ASSERT_EQ(Data.f[0].Indices[5], 1);
+  ASSERT_EQ(Data.f[0].Indices[6], 3);
+  ASSERT_EQ(Data.f[0].Indices[7], 3);
+  ASSERT_EQ(Data.f[0].Indices[8], 1);
 
   // f 2/1/5 8/2/5 4/3/5
-  ASSERT_EQ(Data.f[8].Index[0], 2);
-  ASSERT_EQ(Data.f[8].Index[1], 1);
-  ASSERT_EQ(Data.f[8].Index[2], 5);
-  ASSERT_EQ(Data.f[8].Index[3], 8);
-  ASSERT_EQ(Data.f[8].Index[4], 2);
-  ASSERT_EQ(Data.f[8].Index[5], 5);
-  ASSERT_EQ(Data.f[8].Index[6], 4);
-  ASSERT_EQ(Data.f[8].Index[7], 3);
-  ASSERT_EQ(Data.f[8].Index[8], 5);
+  ASSERT_EQ(Data.f[8].Indices[0], 2);
+  ASSERT_EQ(Data.f[8].Indices[1], 1);
+  ASSERT_EQ(Data.f[8].Indices[2], 5);
+  ASSERT_EQ(Data.f[8].Indices[3], 8);
+  ASSERT_EQ(Data.f[8].Indices[4], 2);
+  ASSERT_EQ(Data.f[8].Indices[5], 5);
+  ASSERT_EQ(Data.f[8].Indices[6], 4);
+  ASSERT_EQ(Data.f[8].Indices[7], 3);
+  ASSERT_EQ(Data.f[8].Indices[8], 5);
 
   return true;
 }
@@ -552,7 +557,7 @@ bool test_parse_ducky_faces()
     ASSERT_EQ(f.HasVt, true);
     ASSERT_EQ(f.HasVn, false);
     ASSERT_EQ(f.NumVertices, 4);
-    ASSERT_EQ(f.Index.size(), 2*f.NumVertices);
+    ASSERT_EQ(f.Indices.size(), 2*f.NumVertices);
   }
   return true;
 }
@@ -571,7 +576,7 @@ bool test_parse_faces_with_only_vertices()
     ASSERT_EQ(f.HasVt, false);
     ASSERT_EQ(f.HasVn, false);
     ASSERT_EQ(f.NumVertices, 3);
-    ASSERT_EQ(f.Index.size(), f.NumVertices);
+    ASSERT_EQ(f.Indices.size(), f.NumVertices);
   }
   return true;
 }
@@ -590,7 +595,7 @@ bool test_parse_faces_with_vertices_and_tex_coords()
     ASSERT_EQ(f.HasVt, true);
     ASSERT_EQ(f.HasVn, false);
     ASSERT_EQ(f.NumVertices, 3);
-    ASSERT_EQ(f.Index.size(), 2*f.NumVertices);
+    ASSERT_EQ(f.Indices.size(), 2*f.NumVertices);
   }
   return true;
 }
@@ -609,7 +614,7 @@ bool test_parse_faces_with_vertices_and_normals()
     ASSERT_EQ(f.HasVt, false);
     ASSERT_EQ(f.HasVn, true);
     ASSERT_EQ(f.NumVertices, 3);
-    ASSERT_EQ(f.Index.size(), 2*f.NumVertices);
+    ASSERT_EQ(f.Indices.size(), 2*f.NumVertices);
   }
   return true;
 }
