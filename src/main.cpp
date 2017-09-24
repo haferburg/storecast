@@ -49,6 +49,9 @@ struct mesh {
   vector<i32> QuadIndices;
 };
 
+// Flattened list of data in the f face element. For example `f 1/2/3 2/3/4 3/4/5` would be
+// represented as {3, true, true, {1,2,3, 2,3,4, 3,4,5}}, while `f 1//2 3//4` would be
+// {2, false, true, {1,2, 3,4}}.
 struct obj_face_data {
   i32 NumVertices;
   bool HasVt;
