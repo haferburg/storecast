@@ -112,8 +112,16 @@ mesh convert_to_mesh(const obj_file_data& Obj)
       if (Replacement[Index] == Index) {
         auto& Vertex = Result.Vertices[FinalIndex];
         Vertex.Position = Obj.v[VertexIndex - 1];
-        Vertex.Normal = Obj.vn[NormalIndex - 1];
-        Vertex.TextureCoords = Obj.vt[UVIndex - 1];
+        if (f.HasVn) {
+          Vertex.Normal = Obj.vn[NormalIndex - 1];
+        } else {
+          Vertex.Normal = vec3{0.f, 0.f, 0.f};
+        }
+        if (f.HasVt) {
+          Vertex.TextureCoords = Obj.vt[UVIndex - 1];
+        } else {
+          Vertex.TextureCoords = vec3{0.f, 0.f, 0.f};
+        }
       }
       if (f.NumVertices == 3) {
         Result.TriangleIndices.push_back(FinalIndex);

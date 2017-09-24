@@ -121,7 +121,7 @@ bool test_convert_to_mesh_without_uvs()
     }
   };
   mesh Mesh = convert_to_mesh(Obj);
-  return false;
+  return true;
 }
 
 bool test_convert_cube_to_mesh_positions()
