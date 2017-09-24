@@ -2,3 +2,4 @@ bin
 build
 *.sublime-workspace
 .tags*
+*.ctm
