@@ -41,8 +41,12 @@ struct vertex_data {
 };
 struct mesh {
   vector<vertex_data> Vertex;
-  vector<i32> Quad;
+  // I could have modeled the index buffer as vector<vector<i32> Indices>>, where Indices.size() is
+  // the number of face vertices. It would have been easier to write code for, but it wastes a
+  // lot of space, and has a lot worse memory locality, resulting in more cache misses. Quads
+  // and triangles should be the main use case, especially for rendering.
   vector<i32> Triangle;
+  vector<i32> Quad;
 };
 
 struct obj_face_data {
@@ -57,6 +61,29 @@ struct obj_file_data {
   vector<vec3> vn;
   vector<obj_face_data> f;
 };
+
+struct draw_command {
+  enum class type {
+    TRIANGLE,
+    QUAD,
+  } Type;
+  i32 StartIndex;
+  i32 NumVertices;
+};
+
+vector<draw_command> get_draw_command_list(const mesh& Mesh)
+{
+  vector<draw_command> Result;
+  Result.reserve(Mesh.Triangle.size() + Mesh.Quad.size());
+  for (auto IndexOffset = 0; IndexOffset < Mesh.Triangle.size(); IndexOffset += 3) {
+    Result.push_back({draw_command::type::TRIANGLE, IndexOffset, 3});
+  }
+  for (auto IndexOffset = 0; IndexOffset < Mesh.Quad.size(); IndexOffset += 4) {
+    Result.push_back({draw_command::type::QUAD, IndexOffset, 4});
+  }
+  return Result;
+}
+
 #define for3(I) for(auto I=0; I<3; ++I)
 #define for4(I) for(auto I=0; I<4; ++I)
 
